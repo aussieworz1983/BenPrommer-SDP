@@ -25,6 +25,8 @@ Based on original code by Ben Eater
 
 Modifications by Mike Sutton - Bread80.com
 
+I slightly modified the code written by the guy above to work with a java client program in order to read and write bin file roms to a 28c256k eeprom. 
+
 
 
 
