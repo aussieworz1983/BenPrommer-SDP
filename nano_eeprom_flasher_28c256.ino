@@ -1,30 +1,24 @@
-/*
- * Code for an EEPROM programmer based on Ben Eater's breadboard design
- * !!!with a few changes!!!
- * 
- * More details in my article at http://bread80.com/?p=222
- * 
- * Based on original code by Ben Eater
- * 
- * Modifications by Mike Sutton - Bread80.com
- */
+#define SHIFT_DATA 2 //data
+#define SHIFT_CLK 3  //clock 
+#define SHIFT_LATCH 4 //latch
+#define WRITE_EN A0
+#define CHIP_EN A1
+#define OUTPUT_EN A2
+#define LED_DONE_PIN 13
 
-#define SHIFT_DATA 2
-#define SHIFT_CLK 3
-#define SHIFT_LATCH 4
+
+
+
+
 #define EEPROM_D0 5
 #define EEPROM_D7 12
-
-#define WRITE_EN A2   //These hardware connections are changed from Ben's original design
-#define CHIP_EN A0    //  "
-#define OUTPUT_EN A1  //  "
-
 #define EEPROM_SIZE 32768//256//48//2048
 
-//    Internal Utility Functions
-//    ==========================
-
-//Set pinMode for data pins
+bool finished = false;
+const byte numChars = 32768;
+char receivedChars[numChars];   // an array to store the received data
+int addr =0;
+boolean reading = false;
 void setDataPinMode(int mode)
 {
   for (int pin = EEPROM_D7;pin >= EEPROM_D0; pin--) 
@@ -52,13 +46,13 @@ byte readEEPROMCurrent()
 
   digitalWrite(OUTPUT_EN, LOW);
     
-//  digitalWrite(CHIP_EN, LOW);
+  digitalWrite(CHIP_EN, LOW);
   byte data = 0;
   for (int pin = EEPROM_D7;pin >= EEPROM_D0; pin--)
   {
     data = (data << 1) + digitalRead(pin);
   }
-//  digitalWrite(CHIP_EN, HIGH);
+  digitalWrite(CHIP_EN, HIGH);
   digitalWrite(OUTPUT_EN, HIGH);
   
   return(data);  
@@ -73,11 +67,11 @@ void writeEEPROMCurrent(byte data)
     digitalWrite(pin, data & 1);
     data = data >> 1;
   }
-//  delayMicroseconds(1);
+ 
   digitalWrite(WRITE_EN, LOW);
-//  digitalWrite(CHIP_EN, LOW);
-//  delayMicroseconds(1);
-//  digitalWrite(CHIP_EN, HIGH);
+  digitalWrite(CHIP_EN, LOW);
+  delayMicroseconds(1);
+  digitalWrite(CHIP_EN, HIGH);
   digitalWrite(WRITE_EN, HIGH);  
 }
 
@@ -191,6 +185,19 @@ void clearEeprom()
   }
   Serial.println();  
 }
+void fillEEPROM(byte data) 
+{
+  Serial.println("Clearing EEPROM");
+  for (word address=0; address < EEPROM_SIZE;address++) 
+  {
+    if(address % 1028 == 0) 
+    {
+      Serial.print('c');
+    }
+    writeEEPROM(address, data);
+  }
+  Serial.println();  
+}
 
 //Dump the entire contents of the EEPROM to the serial port
 void printContents() 
@@ -221,60 +228,9 @@ void printContents()
   }
 }
 
-//Program the EPROM for Ben Eater's 7-segment LED display driver
-//Converts 8-bit binary to decimal
-//Decimal can be either signed or unsigned
-//This code is optimised to blank leading zeros and to not
-//have any gap between the minus symbol and digits
-void program7Segment() {
-  //Hex digits
-  //byte hexDigit[] = { 0x01, 0x4f, 0x12, 0x06, 0x4c, 0x24, 0x20, 0x0f, 0x00, 0x04, 0x08, 0x60, 0x31, 0x42, 0x30, 0x38 };
-  
-  Serial.println("Programming");
-  //For common anode displays
-  //byte digits[] = { 0x01, 0x4f, 0x12, 0x06, 0x4c, 0x24, 0x20, 0x0f, 0x00, 0x04 };
-  //For common cathode displays
-  byte digits[] = { 0x7e, 0x30, 0x6d, 0x79, 0x33, 0x5b, 0x5f, 0x70, 0x7f, 0x7b };  
-  byte digitDash = 1;
-  byte digitBlank = 0;
 
-  //Unsigned numbers
-  //Updated to use leading blanks instead of leading zeros ( ? : operator in each call)
-  for (int number = 0; number <= 255; number++) {
-    //Units
-    writeEEPROM(number, digits[number % 10]);
-    //Tens
-    writeEEPROM(256 + number, number > 9 ? digits[(number / 10) % 10] : digitBlank );
-    //Hundreds
-    writeEEPROM(512 + number, number > 99 ? digits[(number / 100) % 10] : digitBlank );
-    //Nowt to see here
-    writeEEPROM(768 + number, digitBlank);
 
-    if (number % 16 == 0) {
-      Serial.print('u');
-    }
-  }
 
-  //Two's complement numbers
-  //Updated to use leading blanks instead of leading zeros ( ? : operator in each call)
-  //Second ? : operator dispays the leading minus sign if necessary (Sorry for ugly code!)
-  for (int number = -128; number <= 127; number++) {
-    byte digitSign = number < 0 ? digitDash : digitBlank;
-    //Units
-    writeEEPROM(byte(number) + 1024, digits[abs(number) % 10]);
-    //Tens
-    writeEEPROM(byte(number) + 1280, abs(number) > 9 ? digits[(abs(number) / 10) % 10] : digitSign);
-    //Hundreds
-    writeEEPROM(byte(number) + 1536, abs(number) > 99 ? digits[(abs(number) / 100) % 10] : abs(number) > 9 ? digitSign : digitBlank);
-    //Minus sign
-    writeEEPROM(byte(number) + 1792, abs(number) > 99 ? digitSign : digitBlank);
-
-    if (number % 16 == 0) {
-      Serial.print('s');
-    }
-  }
-  Serial.println();  
-}
 
 // Test routines
 // =============
@@ -392,8 +348,73 @@ void autoTest(word address, word chipSize)
   testSDPOff(address);
   programROMTestPattern(chipSize);
 }
+void Done(bool state){
+  while(state==true){
+      digitalWrite(LED_DONE_PIN,HIGH);
+      delay(100);
+      digitalWrite(LED_DONE_PIN, LOW);
+      delay(100);
+    }  
+    if(digitalRead(LED_DONE_PIN)==HIGH){
+      digitalWrite(LED_DONE_PIN, LOW);
+      }
+  }
+void ReadAll(){
+  byte ch[2];
+ 
+  for (word address=0; address < EEPROM_SIZE;address++) 
+  {
+    
+  byte ret = readEEPROM(address); 
+   
+    Serial.write(ret);
+  
+  }
+  
+  Done(true);
+  ch[0]=1;
+  ch[1]=1;//send back finished
+  Serial.write(ch,sizeof(ch));
+  delay(3000);
+  Done(false);
+  
+  }
+void WriteFromUsb(){
+ reading=true; 
+ byte ch[2];
 
+ byte theBytes[64]; 
+ 
+ ch[0]=1;
+ ch[1]=1;//send back ready
+ Serial.write(ch,sizeof(ch));
+ 
+ 
+ 
+ while(reading==true){
+  digitalWrite(LED_DONE_PIN,HIGH);
+  if(Serial.available()>0){
+    Serial.readBytes(theBytes,sizeof(theBytes));
+     for(int j=0;j<sizeof(theBytes);j++){
+        writeEEPROM(addr, theBytes[j]);
+        addr++;
+     } 
+    
+    }
+     if(addr>32767){
+      reading=false;
+      }
+  }
+
+  digitalWrite(LED_DONE_PIN,LOW);
+  
+  
+  }
 void setup() {
+   pinMode(LED_DONE_PIN, OUTPUT);
+  
+
+  digitalWrite(LED_DONE_PIN,LOW);
   // put your setup code here, to run once:
   pinMode(SHIFT_DATA, OUTPUT);
   pinMode(SHIFT_CLK, OUTPUT);
@@ -407,30 +428,43 @@ void setup() {
   digitalWrite(OUTPUT_EN, HIGH);
   pinMode(OUTPUT_EN, OUTPUT);
 
-  Serial.begin(115200);
+  Serial.begin(9600);
+  Serial.println("ok");
 
-  disableSDP();
+ 
 
-//  clearEeprom();
-
-  autoTest(0x60, 256);
-
-  disableSDP();
-
-//  program7Segment();
-
-//  printContents();
-
-  Serial.println("Done");
 }
+
 
 //Flash the LED when we're done
 void loop() {
-  pinMode(13, OUTPUT);
+byte ch[2];
+   // if(Serial.available()){
+    
+     
+    Serial.readBytes(ch,sizeof(ch));
+    if(ch[0]==1&&ch[1]==1){
+      ch[0]=0;
+      ch[1]=0;
+      Serial.write(ch,sizeof(ch));
+      }
+      else if(ch[0]==1&&ch[1]==0){
+         
+         ReadAll();
+      }
+      else if(ch[0]==0&&ch[1]==1){
+        // Done(false);    
+           
+         WriteFromUsb();
+         
+      }else {
+        // Serial.write(ch,sizeof(ch));
+        
+        }
+    
+   
+  // }
 
-  digitalWrite(13,HIGH);
-  delay(100);
-  digitalWrite(13, LOW);
-  delay(100);
+
   // put your main code here, to run repeatedly:
 }
