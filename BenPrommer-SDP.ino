@@ -5,11 +5,6 @@
 #define CHIP_EN A1
 #define OUTPUT_EN A2
 #define LED_DONE_PIN 13
-
-
-
-
-
 #define EEPROM_D0 5
 #define EEPROM_D7 12
 #define EEPROM_SIZE 32768//256//48//2048
@@ -17,14 +12,16 @@
 bool finished = false;
 const byte numChars = 32768;
 char receivedChars[numChars];   // an array to store the received data
-int addr =0;
-boolean reading = false;
+int addr = 0;
+boolean writing = false;
+
+
 void setDataPinMode(int mode)
 {
-  for (int pin = EEPROM_D7;pin >= EEPROM_D0; pin--) 
+  for (int pin = EEPROM_D7; pin >= EEPROM_D0; pin--)
   {
     pinMode(pin, mode);
-  }  
+  }
 }
 
 //Set the address in the shift registers
@@ -33,7 +30,7 @@ void setAddress(word address)
 {
   shiftOut(SHIFT_DATA, SHIFT_CLK, MSBFIRST, address >> 8);
   shiftOut(SHIFT_DATA, SHIFT_CLK, MSBFIRST, address);
-   
+
   digitalWrite(SHIFT_LATCH, HIGH);
   digitalWrite(SHIFT_LATCH, LOW);
 }
@@ -45,34 +42,34 @@ byte readEEPROMCurrent()
   setDataPinMode(INPUT);
 
   digitalWrite(OUTPUT_EN, LOW);
-    
+
   digitalWrite(CHIP_EN, LOW);
   byte data = 0;
-  for (int pin = EEPROM_D7;pin >= EEPROM_D0; pin--)
+  for (int pin = EEPROM_D7; pin >= EEPROM_D0; pin--)
   {
     data = (data << 1) + digitalRead(pin);
   }
   digitalWrite(CHIP_EN, HIGH);
   digitalWrite(OUTPUT_EN, HIGH);
-  
-  return(data);  
+
+  return (data);
 }
 
 //Write data to currently programmed address
 //No verfiry/no write complete testing/No changing pinModes
 void writeEEPROMCurrent(byte data)
 {
-  for(int pin = EEPROM_D0; pin <= EEPROM_D7; pin++) 
+  for (int pin = EEPROM_D0; pin <= EEPROM_D7; pin++)
   {
     digitalWrite(pin, data & 1);
     data = data >> 1;
   }
- 
+
   digitalWrite(WRITE_EN, LOW);
   digitalWrite(CHIP_EN, LOW);
   delayMicroseconds(1);
   digitalWrite(CHIP_EN, HIGH);
-  digitalWrite(WRITE_EN, HIGH);  
+  digitalWrite(WRITE_EN, HIGH);
 }
 
 //Wait for the chip to finish, with a timeout
@@ -95,7 +92,7 @@ bool writeWait(byte data)
 //   ====================
 
 //Read data at given address
-byte readEEPROM(word address) 
+byte readEEPROM(word address)
 {
   setAddress(address);
 
@@ -104,7 +101,7 @@ byte readEEPROM(word address)
 
 //Write a byte to the specified EPROM address
 //SDP needs to be off (if chip has it)
-bool writeEEPROM(word address, byte data) 
+bool writeEEPROM(word address, byte data)
 {
   setDataPinMode(OUTPUT);
 
@@ -122,7 +119,7 @@ bool writeEEPROM(word address, byte data)
 //!!!(Some devices) This will enable SDP if is currently disabled
 //(Some devices) you could adapt this to write multiple bytes in one go
 //with only a single command sequence.
-bool writeEEPROMSDP(word address, byte data) 
+bool writeEEPROMSDP(word address, byte data)
 {
   setDataPinMode(OUTPUT);
 
@@ -136,7 +133,7 @@ bool writeEEPROMSDP(word address, byte data)
 
   setAddress(address);
   writeEEPROMCurrent(data);
-  
+
   digitalWrite(CHIP_EN, HIGH);
 
   return writeWait(data);
@@ -172,54 +169,54 @@ void disableSDP()
 
 //Clear entire EEPROM (every byte to 0xFF)
 //Assumes SDP is disabled
-void clearEeprom() 
+void clearEeprom()
 {
   Serial.println("Clearing EEPROM");
-  for (word address=0; address < EEPROM_SIZE;address++) 
+  for (word address = 0; address < EEPROM_SIZE; address++)
   {
-    if(address % 1028 == 0) 
+    if (address % 1028 == 0)
     {
       Serial.print('c');
     }
     writeEEPROM(address, 255);
   }
-  Serial.println();  
+  Serial.println();
 }
-void fillEEPROM(byte data) 
+void fillEEPROM(byte data)
 {
   Serial.println("Clearing EEPROM");
-  for (word address=0; address < EEPROM_SIZE;address++) 
+  for (word address = 0; address < EEPROM_SIZE; address++)
   {
-    if(address % 1028 == 0) 
+    if (address % 1028 == 0)
     {
       Serial.print('c');
     }
     writeEEPROM(address, data);
   }
-  Serial.println();  
+  Serial.println();
 }
 
 //Dump the entire contents of the EEPROM to the serial port
-void printContents() 
+void printContents()
 {
   int bufSize = 16;
-   
-  Serial.println("Reading EEPROM");
-  for(word base=0; base < EEPROM_SIZE; base += 16) 
+
+  Serial.println(" EEPROM");
+  for (word base = 0; base < EEPROM_SIZE; base += 16)
   {
     uint8_t data[bufSize];
-    for(int offset=0; offset < bufSize; offset++) 
+    for (int offset = 0; offset < bufSize; offset++)
     {
       data[offset] = readEEPROM(base + offset);
     }
 
-    char buf[bufSize*4];
+    char buf[bufSize * 4];
     sprintf(buf, "%04x:  %02x %02x %02x %02x %02x %02x %02x %02x  %02x %02x %02x %02x %02x %02x %02x %02x",
-      base, data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], 
-      data[8], data[9], data[10], data[11], data[12], data[13], data[14], data[15]);
+            base, data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
+            data[8], data[9], data[10], data[11], data[12], data[13], data[14], data[15]);
     Serial.print(buf);
     Serial.print(' ');
-    for (int i=0;i < bufSize;i++)
+    for (int i = 0; i < bufSize; i++)
     {
       Serial.print(data[i] < 32 | data[i] > 127 ? '.' : (char) data[i]);
     }
@@ -239,7 +236,7 @@ void printContents()
 //And verify it wrote correctly
 void programROMTestPattern(word chipSize) {
   Serial.println("++Test Pattern without SDP");
-  for (word address=0;address < chipSize;address++) 
+  for (word address = 0; address < chipSize; address++)
   {
     int value = address % 256;
     writeEEPROM(address, value);
@@ -249,7 +246,7 @@ void programROMTestPattern(word chipSize) {
       Serial.print("Not SDP Fail at ");
       Serial.println(address);
     }
-    if (!(address % 1024)) 
+    if (!(address % 1024))
     {
       Serial.print('t');
     }
@@ -260,7 +257,7 @@ void programROMTestPattern(word chipSize) {
 //Same as the previous routine but using SDP
 void programROMTestPatternSDP(word chipSize) {
   Serial.println("++++Test Pattern with SDP");
-  for (word address=0;address < chipSize;address++) 
+  for (word address = 0; address < chipSize; address++)
   {
     int value = 255 - (address % 256);
     writeEEPROMSDP(address, value);
@@ -270,7 +267,7 @@ void programROMTestPatternSDP(word chipSize) {
       Serial.print("SDP Fail at ");
       Serial.println(address);
     }
-    if (!(address % 1024)) 
+    if (!(address % 1024))
     {
       Serial.print('T');
     }
@@ -302,7 +299,7 @@ void testSDPOff(word address)
     Serial.println("Test SDP Off FAIL (2)");
   }
   //Clean up - write original data back
-  writeEEPROM(address,old);
+  writeEEPROM(address, old);
   //Is it still the original data?
   if (readEEPROM(address) != old)
   {
@@ -327,7 +324,7 @@ void testSDPOn(word address)
     Serial.println("Test SDP On FAIL (1)");
   }
   //Clean up - write original data back in case we changed it
-  writeEEPROM(address,old);
+  writeEEPROM(address, old);
   //Is it still the original data?
   if (readEEPROM(address) != old)
   {
@@ -348,73 +345,68 @@ void autoTest(word address, word chipSize)
   testSDPOff(address);
   programROMTestPattern(chipSize);
 }
-void Done(bool state){
-  while(state==true){
-      digitalWrite(LED_DONE_PIN,HIGH);
-      delay(100);
-      digitalWrite(LED_DONE_PIN, LOW);
-      delay(100);
-    }  
-    if(digitalRead(LED_DONE_PIN)==HIGH){
-      digitalWrite(LED_DONE_PIN, LOW);
-      }
-  }
-void ReadAll(){
-  byte ch[2];
- 
-  for (word address=0; address < EEPROM_SIZE;address++) 
-  {
-    
-  byte ret = readEEPROM(address); 
-   
-    Serial.write(ret);
-  
-  }
-  
-  Done(true);
-  ch[0]=1;
-  ch[1]=1;//send back finished
-  Serial.write(ch,sizeof(ch));
-  delay(3000);
-  Done(false);
-  
-  }
-void WriteFromUsb(){
- reading=true; 
- byte ch[2];
 
- byte theBytes[64]; 
- 
- ch[0]=1;
- ch[1]=1;//send back ready
- Serial.write(ch,sizeof(ch));
- 
- 
- 
- while(reading==true){
-  digitalWrite(LED_DONE_PIN,HIGH);
-  if(Serial.available()>0){
-    Serial.readBytes(theBytes,sizeof(theBytes));
-     for(int j=0;j<sizeof(theBytes);j++){
+void ReadAll() {
+  //read epprom contents to java client
+  byte ch[2];
+  digitalWrite(LED_DONE_PIN, HIGH);
+  for (word address = 0; address < EEPROM_SIZE; address++)
+  {
+
+    byte ret = readEEPROM(address);
+
+    Serial.write(ret);
+
+  }
+
+  
+  ch[0] = 1;
+  ch[1] = 1; //send back finished
+  Serial.write(ch, sizeof(ch));
+  delay(3000);
+  digitalWrite(LED_DONE_PIN, LOW);
+
+}
+void WriteFromUsb() {
+  //write data to eeprom recieved from java client 
+  writing = true;
+  byte ch[2];
+
+  byte theBytes[64];
+
+  ch[0] = 1;
+  ch[1] = 1; //send back 1 1 to client meaning ready
+  Serial.write(ch, sizeof(ch));
+
+
+
+  while (writing == true) {
+    digitalWrite(LED_DONE_PIN, HIGH);
+    if (Serial.available() > 0) {
+      Serial.readBytes(theBytes, sizeof(theBytes));
+      for (int j = 0; j < sizeof(theBytes); j++) {
         writeEEPROM(addr, theBytes[j]);
         addr++;
-     } 
-    
-    }
-     if(addr>32767){
-      reading=false;
       }
+
+    }
+    //needs work here
+    if (addr > 32767) {
+      writing = false;
+      //tell java client all bytes recieved
+    }
   }
 
-  digitalWrite(LED_DONE_PIN,LOW);
-  
-  
-  }
+  digitalWrite(LED_DONE_PIN, LOW);
+
+
+}
+//setup pins
 void setup() {
-   pinMode(LED_DONE_PIN, OUTPUT);
-  
+  pinMode(LED_DONE_PIN, OUTPUT);
 
-  digitalWrite(LED_DONE_PIN,LOW);
+
+  digitalWrite(LED_DONE_PIN, LOW);
   // put your setup code here, to run once:
   pinMode(SHIFT_DATA, OUTPUT);
   pinMode(SHIFT_CLK, OUTPUT);
@@ -431,40 +423,35 @@ void setup() {
   Serial.begin(9600);
   Serial.println("ok");
 
- 
+
 
 }
 
-
-//Flash the LED when we're done
+//WRITE and read data between nano and java client
 void loop() {
-byte ch[2];
-   // if(Serial.available()){
-    
-     
-    Serial.readBytes(ch,sizeof(ch));
-    if(ch[0]==1&&ch[1]==1){
-      ch[0]=0;
-      ch[1]=0;
-      Serial.write(ch,sizeof(ch));
-      }
-      else if(ch[0]==1&&ch[1]==0){
-         
-         ReadAll();
-      }
-      else if(ch[0]==0&&ch[1]==1){
-        // Done(false);    
-           
-         WriteFromUsb();
-         
-      }else {
-        // Serial.write(ch,sizeof(ch));
-        
-        }
-    
+  byte ch[2];
+  Serial.readBytes(ch, sizeof(ch));
+  
+      if (ch[0] == 1 && ch[1] == 1) {
+    //sends 00 back to client
+    ch[0] = 0;
+    ch[1] = 0;
+    Serial.write(ch, sizeof(ch));
+  }
+  else if (ch[0] == 1 && ch[1] == 0) {
+
+    ReadAll();
+  }
+  else if (ch[0] == 0 && ch[1] == 1) {
+    // Done(false);
+
+    WriteFromUsb();
+
+  } else {
+    // Serial.write(ch,sizeof(ch));
    
-  // }
+  }
+ 
 
 
-  // put your main code here, to run repeatedly:
 }
