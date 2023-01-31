@@ -25,7 +25,7 @@ Based on original code by Ben Eater
 
 Modifications by Mike Sutton - Bread80.com
 
-I slightly modified the code written by the guy above to work with a java client program in order to read and write bin file roms to a 28c256k eeprom. 
+I slightly modified the code written by the guy above to work with a java client program https://github.com/aussieworz1983/EEPROM-Programmer-28c256-java-client in order to read and write bin and out files to a 28c256k homemade arduino eeprom programmer i use for my 6502 breadboard computer its a bit slow at writing but gets the job done. 
 
 
 
